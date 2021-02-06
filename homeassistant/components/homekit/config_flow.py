@@ -51,6 +51,7 @@ MODE_EXCLUDE = "exclude"
 INCLUDE_EXCLUDE_MODES = [MODE_EXCLUDE, MODE_INCLUDE]
 
 SUPPORTED_DOMAINS = [
+    "air_quality",
     "alarm_control_panel",
     "automation",
     "binary_sensor",

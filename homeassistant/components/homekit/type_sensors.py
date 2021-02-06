@@ -14,6 +14,8 @@ from homeassistant.core import callback
 
 from .accessories import TYPES, HomeAccessory
 from .const import (
+    ATTR_PM10_NAME,
+    ATTR_PM25_NAME,
     CHAR_AIR_PARTICULATE_DENSITY,
     CHAR_AIR_QUALITY,
     CHAR_CARBON_DIOXIDE_DETECTED,
@@ -29,6 +31,8 @@ from .const import (
     CHAR_LEAK_DETECTED,
     CHAR_MOTION_DETECTED,
     CHAR_OCCUPANCY_DETECTED,
+    CHAR_PM10_DENSITY,
+    CHAR_PM25_DENSITY,
     CHAR_SMOKE_DETECTED,
     DEVICE_CLASS_CO2,
     DEVICE_CLASS_DOOR,
@@ -159,6 +163,77 @@ class AirQualitySensor(HomeAccessory):
                 self.char_density.set_value(density)
                 _LOGGER.debug("%s: Set density to %d", self.entity_id, density)
             air_quality = density_to_air_quality(density)
+            if self.char_quality.value != air_quality:
+                self.char_quality.set_value(air_quality)
+                _LOGGER.debug("%s: Set air_quality to %d", self.entity_id, air_quality)
+
+
+@TYPES.register("AirQualitySensor_AIO")
+class AirQualitySensor_AIO(HomeAccessory):
+    """Generate a AirQualitySensor All-in-One accessory as air quality sensor with multiple sensor."""
+
+    def __init__(self, *args):
+        """Initialize a AirQualitySensor All-in-One accessory object."""
+        super().__init__(*args, category=CATEGORY_SENSOR)
+        state = self.hass.states.get(self.entity_id)
+        sensor_char = []
+        if ATTR_PM10_NAME in state.attributes:
+            sensor_char.append(CHAR_PM10_DENSITY)
+        if ATTR_PM25_NAME in state.attributes:
+            sensor_char.append(CHAR_PM25_DENSITY)
+        serv_air_quality = self.add_preload_service(
+            SERV_AIR_QUALITY_SENSOR, sensor_char
+        )
+        self.char_quality = serv_air_quality.configure_char(CHAR_AIR_QUALITY, value=0)
+        if ATTR_PM10_NAME in state.attributes:
+            self.char_pm10_density = serv_air_quality.configure_char(
+                CHAR_PM10_DENSITY, value=0
+            )
+        if ATTR_PM25_NAME in state.attributes:
+            self.char_pm25_density = serv_air_quality.configure_char(
+                CHAR_PM25_DENSITY, value=0
+            )
+        # Set the state so it is in sync on initial
+        # GET to avoid an event storm after homekit startup
+        self.async_update_state(state)
+
+    @callback
+    def async_update_state(self, new_state):
+        """Update accessory after state change."""
+        updated = False
+        if ATTR_PM10_NAME in new_state.attributes:
+            updated = True
+            pm10_density = convert_to_float(new_state.attributes.get(ATTR_PM10_NAME))
+            if pm10_density:
+                if self.char_pm10_density.value != pm10_density:
+                    self.char_pm10_density.set_value(pm10_density)
+                    _LOGGER.debug(
+                        "%s: Set PM10 density to %d", self.entity_id, pm10_density
+                    )
+
+        if ATTR_PM25_NAME in new_state.attributes:
+            updated = True
+            pm25_density = convert_to_float(new_state.attributes.get(ATTR_PM25_NAME))
+            if pm25_density:
+                if self.char_pm25_density.value != pm25_density:
+                    self.char_pm25_density.set_value(pm25_density)
+                    _LOGGER.debug(
+                        "%s: Set PM2.5 density to %d", self.entity_id, pm25_density
+                    )
+        if updated:
+            cal_density = 0
+            if (
+                ATTR_PM10_NAME in new_state.attributes
+                and ATTR_PM25_NAME in new_state.attributes
+            ):
+                cal_density = (
+                    self.char_pm10_density.value + self.char_pm25_density.value
+                ) / 2
+            elif ATTR_PM10_NAME in new_state.attributes:
+                cal_density = self.char_pm10_density.value
+            elif ATTR_PM25_NAME in new_state.attributes:
+                cal_density = self.char_pm25_density.value
+            air_quality = density_to_air_quality(cal_density)
             if self.char_quality.value != air_quality:
                 self.char_quality.set_value(air_quality)
                 _LOGGER.debug("%s: Set air_quality to %d", self.entity_id, air_quality)

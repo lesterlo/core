@@ -103,7 +103,10 @@ def get_accessory(hass, driver, state, aid, config):
     a_type = None
     name = config.get(CONF_NAME, state.name)
 
-    if state.domain == "alarm_control_panel":
+    if state.domain == "air_quality":
+        a_type = "AirQualitySensor_AIO"
+
+    elif state.domain == "alarm_control_panel":
         a_type = "SecuritySystem"
 
     elif state.domain in ("binary_sensor", "device_tracker", "person"):
